@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Call Interface</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: #1f2937;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-section, .transcript-section {
+            background-color: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .form-section {
+            grid-column: 1;
+        }
+
+        .transcript-section {
+            grid-column: 2;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2 {
+            margin: 0 0 20px 0;
+            color: #111827;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .response {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .success {
+            background-color: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .error {
+            background-color: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .loading {
+            background-color: #f3f4f6;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+        }
+
+        .transcript {
+            flex-grow: 1;
+            background-color: #f9fafb;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            overflow-y: auto;
+            max-height: 400px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .transcript-entry {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .transcript-entry:last-child {
+            border-bottom: none;
+        }
+
+        .transcript-speaker {
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.connected {
+            background-color: #ecfdf5;
+            color: #065f46;
+        }
+
+        .status-badge.disconnected {
+            background-color: #fef2f2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-section">
+            <h1>AI Call Interface</h1>
+            <form id="callForm">
+                <div class="form-group">
+                    <label for="number">Phone Number:</label>
+                    <input type="tel" id="number" required 
+                           pattern="^\+?1[0-9\-\(\)\s]{10,14}$"
+                           placeholder="Enter phone number (e.g., +12345678901)"
+                           title="Enter a US/Canada number with or without +1 prefix">
+                </div>
+                <div class="form-group">
+                    <label for="prompt">AI Prompt:</label>
+                    <textarea id="prompt" required
+                             placeholder="Enter the AI's personality/role (e.g., You are a friendly customer service representative named Sarah)"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="firstMessage">First Message:</label>
+                    <textarea id="firstMessage" required
+                             placeholder="Enter the first message the AI will say (e.g., Hi there! This is Sarah calling. How are you today?)"></textarea>
+                </div>
+                <button type="submit">Make Call</button>
+                <div id="response" class="response"></div>
+            </form>
+        </div>
+
+        <div class="transcript-section">
+            <h2>Live Transcript</h2>
+            <div class="status-badge disconnected" id="callStatus">Disconnected</div>
+            <div class="transcript" id="transcript"></div>
+        </div>
+    </div>
+
+    <script>
+        const MAKE_WEBHOOK_URL = 'https://hook.us2.make.com/1uhstx2omqwamsbmmlfgcvuujiqtosss';
+        
+        document.getElementById('callForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const button = e.target.querySelector('button');
+            const responseDiv = document.getElementById('response');
+            
+            // Get and format phone number
+            let number = document.getElementById('number').value.trim();
+            const prompt = document.getElementById('prompt').value.trim();
+            const firstMessage = document.getElementById('firstMessage').value.trim();
+            
+            // Remove any spaces, dashes, parentheses
+            number = number.replace(/[-() ]/g, '');
+            
+            // Ensure +1 prefix
+            if (!number.startsWith('+')) {
+                if (number.startsWith('1')) {
+                    number = '+' + number;
+                } else {
+                    number = '+1' + number;
+                }
+            }
+            
+            // Validate final format
+            const phoneRegex = /^\+1\d{10}$/;
+            if (!phoneRegex.test(number)) {
+                responseDiv.style.display = 'block';
+                responseDiv.className = 'response error';
+                responseDiv.textContent = 'Error: Please enter a valid 10-digit US/Canada phone number';
+                return;
+            }
+            
+            // Validate other fields
+            if (!prompt || !firstMessage) {
+                responseDiv.style.display = 'block';
+                responseDiv.className = 'response error';
+                responseDiv.textContent = 'Error: All fields are required';
+                return;
+            }
+            
+            // Show loading state
+            button.disabled = true;
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response loading';
+            responseDiv.textContent = 'Initiating call...';
+            
+            try {
+                const payload = {
+                    number,
+                    prompt,
+                    firstMessage
+                };
+                
+                console.log('Sending exact payload:', JSON.stringify(payload));
+                
+                const response = await fetch(MAKE_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error response:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        body: errorText
+                    });
+                    throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Response:', data);
+                
+                // Check for nested response structure
+                const result = data.body || data;
+                
+                if (result.success) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = `Call initiated successfully! Call ID: ${result.callSid}`;
+                    
+                    // Connect WebSocket for live transcript
+                    const ws = connectWebSocket(result.callSid);
+                    
+                    // Add initial message to transcript
+                    addTranscriptEntry('AI', firstMessage);
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `Error: ${result.error || 'Unknown error occurred'}`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `Error: ${error.message}`;
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        // Add transcript functionality
+        function addTranscriptEntry(speaker, text) {
+            const transcript = document.getElementById('transcript');
+            const entry = document.createElement('div');
+            entry.className = 'transcript-entry';
+            
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `
+                <span class="transcript-time">${time}</span>
+                <span class="transcript-speaker">${speaker}:</span>
+                <span class="transcript-text">${text}</span>
+            `;
+            
+            transcript.appendChild(entry);
+            transcript.scrollTop = transcript.scrollHeight;
+        }
+
+        function updateCallStatus(isConnected) {
+            const statusBadge = document.getElementById('callStatus');
+            if (isConnected) {
+                statusBadge.textContent = 'Connected';
+                statusBadge.className = 'status-badge connected';
+            } else {
+                statusBadge.textContent = 'Disconnected';
+                statusBadge.className = 'status-badge disconnected';
+            }
+        }
+
+        // WebSocket handling for live transcript
+        function connectWebSocket(callSid) {
+            // Use secure WebSocket and the railway.app domain
+            const wsUrl = `wss://queryai-production.up.railway.app/outbound-media-stream?callSid=${callSid}`;
+            console.log('Connecting to WebSocket:', wsUrl);
+            
+            const ws = new WebSocket(wsUrl);
+
+            // Send initial connection message
+            ws.onopen = () => {
+                console.log('WebSocket connected to server');
+                updateCallStatus(true);
+                
+                // Send initial message to identify this connection
+                ws.send(JSON.stringify({
+                    event: 'init',
+                    callSid: callSid
+                }));
+            };
+
+            ws.onmessage = (event) => {
+                console.log('Received WebSocket message:', event.data);
+                try {
+                    const message = JSON.parse(event.data);
+                    console.log('Parsed message:', message);
+                    
+                    // Handle different message types
+                    switch (message.type) {
+                        case 'transcript':
+                            console.log('Adding user transcript:', message.text);
+                            addTranscriptEntry('User', message.text);
+                            break;
+                        case 'ai_response':
+                            console.log('Adding AI response:', message.text);
+                            addTranscriptEntry('AI', message.text);
+                            break;
+                        case 'call_ended':
+                            console.log('Call ended');
+                            updateCallStatus(false);
+                            addTranscriptEntry('System', 'Call ended');
+                            break;
+                    }
+                } catch (error) {
+                    console.error('Error handling WebSocket message:', error);
+                }
+            };
+
+            ws.onclose = (event) => {
+                console.log('WebSocket disconnected from server:', event.code, event.reason);
+                updateCallStatus(false);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateCallStatus(false);
+            };
+
+            return ws;
+        }
+    </script>
+</body>
+</html> 
