@@ -203,10 +203,6 @@
                         <label for="fromNumber">Twilio Phone Number</label>
                         <input type="tel" id="fromNumber" required placeholder="Enter your Twilio phone number (+1XXXXXXXXXX)">
                     </div>
-                    <div class="form-group">
-                        <label for="webhookUrl">Make.com Webhook URL</label>
-                        <input type="text" id="webhookUrl" required placeholder="Enter your Make.com webhook URL">
-                    </div>
                 </div>
 
                 <!-- Call Details Section -->
@@ -239,7 +235,7 @@
     </div>
 
     <script>
-        const MAKE_WEBHOOK_URL = 'YOUR_MAKE_WEBHOOK_URL';
+        const MAKE_WEBHOOK_URL = 'https://hook.us2.make.com/1uhstx2omqwamsbmmlfgcvuujiqtosss';
         
         document.getElementById('callForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -302,11 +298,6 @@
             responseDiv.textContent = 'Initiating call...';
             
             try {
-                const webhookUrl = document.getElementById('webhookUrl').value;
-                if (!webhookUrl) {
-                    throw new Error('Make.com webhook URL is required');
-                }
-                
                 const payload = {
                     number,
                     prompt,
@@ -320,7 +311,7 @@
                 
                 console.log('Sending exact payload:', JSON.stringify(payload));
                 
-                const response = await fetch(webhookUrl, {
+                const response = await fetch(MAKE_WEBHOOK_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
