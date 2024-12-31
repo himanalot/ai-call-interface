@@ -180,12 +180,41 @@
         <div class="form-section">
             <h1>AI Call Interface</h1>
             <form id="callForm">
+                <!-- API Configuration Section -->
+                <div class="api-section">
+                    <h2>API Configuration</h2>
+                    <div class="form-group">
+                        <label for="elevenLabsKey">ElevenLabs API Key</label>
+                        <input type="password" id="elevenLabsKey" required placeholder="Enter your ElevenLabs API key">
+                    </div>
+                    <div class="form-group">
+                        <label for="agentId">ElevenLabs Agent ID</label>
+                        <input type="text" id="agentId" required placeholder="Enter your ElevenLabs agent ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="twilioSid">Twilio Account SID</label>
+                        <input type="text" id="twilioSid" required placeholder="Enter your Twilio Account SID">
+                    </div>
+                    <div class="form-group">
+                        <label for="twilioToken">Twilio Auth Token</label>
+                        <input type="password" id="twilioToken" required placeholder="Enter your Twilio Auth Token">
+                    </div>
+                    <div class="form-group">
+                        <label for="fromNumber">Twilio Phone Number</label>
+                        <input type="tel" id="fromNumber" required placeholder="Enter your Twilio phone number (+1XXXXXXXXXX)">
+                    </div>
+                    <div class="form-group">
+                        <label for="webhookUrl">Make.com Webhook URL</label>
+                        <input type="text" id="webhookUrl" required placeholder="Enter your Make.com webhook URL">
+                    </div>
+                </div>
+
+                <!-- Call Details Section -->
                 <div class="form-group">
-                    <label for="number">Phone Number:</label>
+                    <label for="number">Recipient's Phone Number</label>
                     <input type="tel" id="number" required 
                            pattern="^\+?1[0-9\-\(\)\s]{10,14}$"
-                           placeholder="Enter phone number (e.g., +12345678901)"
-                           title="Enter a US/Canada number with or without +1 prefix">
+                           placeholder="Enter recipient's phone number (+1XXXXXXXXXX)">
                 </div>
                 <div class="form-group">
                     <label for="prompt">AI Prompt:</label>
@@ -210,7 +239,7 @@
     </div>
 
     <script>
-        const MAKE_WEBHOOK_URL = 'https://hook.us2.make.com/1uhstx2omqwamsbmmlfgcvuujiqtosss';
+        const MAKE_WEBHOOK_URL = 'YOUR_MAKE_WEBHOOK_URL';
         
         document.getElementById('callForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -252,6 +281,20 @@
                 return;
             }
             
+            // Validate API configuration
+            const elevenLabsKey = document.getElementById('elevenLabsKey').value;
+            const agentId = document.getElementById('agentId').value;
+            const twilioSid = document.getElementById('twilioSid').value;
+            const twilioToken = document.getElementById('twilioToken').value;
+            const fromNumber = document.getElementById('fromNumber').value;
+            
+            if (!elevenLabsKey || !agentId || !twilioSid || !twilioToken || !fromNumber) {
+                responseDiv.style.display = 'block';
+                responseDiv.className = 'response error';
+                responseDiv.textContent = 'Error: All API configuration fields are required';
+                return;
+            }
+            
             // Show loading state
             button.disabled = true;
             responseDiv.style.display = 'block';
@@ -259,15 +302,25 @@
             responseDiv.textContent = 'Initiating call...';
             
             try {
+                const webhookUrl = document.getElementById('webhookUrl').value;
+                if (!webhookUrl) {
+                    throw new Error('Make.com webhook URL is required');
+                }
+                
                 const payload = {
                     number,
                     prompt,
-                    firstMessage
+                    firstMessage,
+                    elevenLabsKey,
+                    agentId,
+                    twilioSid,
+                    twilioToken,
+                    fromNumber
                 };
                 
                 console.log('Sending exact payload:', JSON.stringify(payload));
                 
-                const response = await fetch(MAKE_WEBHOOK_URL, {
+                const response = await fetch(webhookUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -343,8 +396,11 @@
 
         // WebSocket handling for live transcript
         function connectWebSocket(callSid) {
-            // Use secure WebSocket and the railway.app domain
-            const wsUrl = `wss://queryai-production.up.railway.app/outbound-media-stream?callSid=${callSid}`;
+            // Get the server URL from configuration or environment
+            const serverUrl = window.location.hostname === 'localhost' 
+                ? 'ws://localhost:8080' 
+                : 'wss://your-server-url.up.railway.app';
+            const wsUrl = `${serverUrl}/outbound-media-stream?callSid=${callSid}`;
             console.log('Connecting to WebSocket:', wsUrl);
             
             const ws = new WebSocket(wsUrl);
